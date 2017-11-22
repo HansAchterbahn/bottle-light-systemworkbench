@@ -48,19 +48,23 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc2;
+DMA_HandleTypeDef hdma_adc2;
 
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 uint8_t Power = 0;
-
+uint32_t adc[2];
+uint32_t color;
+uint32_t luminosity;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_TIM3_Init(void);
 
@@ -71,13 +75,46 @@ static void MX_TIM3_Init(void);
 
 /* USER CODE BEGIN 0 */
 
+#ifdef HAL
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	//Power = 1 - Power;
+	switch(GPIO_Pin)
+	{
+	case GPIO_PIN_8:
+		HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 1);
+		break;
+
+	case GPIO_PIN_9:
+		HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 1);
+		break;
+
+	case GPIO_PIN_10:
+		HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 1);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	color = adc[0];
+	luminosity = adc[1];
+}
+
+
+#endif
+
 /* USER CODE END 0 */
 
 int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	uint32_t Color[2];
+
 
 
   /* USER CODE END 1 */
@@ -100,11 +137,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC2_Init();
   MX_TIM3_Init();
 
   /* USER CODE BEGIN 2 */
-
+  HAL_ADC_Start_DMA(&hadc2, adc, 2);
 
   /* USER CODE END 2 */
 
@@ -135,14 +173,8 @@ int main(void)
 
 
 
-	  // ADC
-	  HAL_ADC_Start(&hadc2);
-	  HAL_ADC_PollForConversion(&hadc2,500);
-	  Color[0]=HAL_ADC_GetValue(&hadc2);
-	  HAL_ADC_Stop(&hadc2);
-
 	  // switch power condition
-	  if(Color[0] < 2000)
+	  if((color + luminosity) < 600)
 	  {
 		  Power = 0;
 	  }
@@ -173,16 +205,13 @@ void SystemClock_Config(void)
 
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = 16;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL4;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -198,13 +227,6 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
-  PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -230,15 +252,15 @@ static void MX_ADC2_Init(void)
     /**Common config 
     */
   hadc2.Instance = ADC2;
-  hadc2.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc2.Init.Resolution = ADC_RESOLUTION_10B;
+  hadc2.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc2.Init.ContinuousConvMode = ENABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
   hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.NbrOfConversion = 2;
   hadc2.Init.DMAContinuousRequests = ENABLE;
   hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc2.Init.LowPowerAutoWait = DISABLE;
@@ -253,9 +275,18 @@ static void MX_ADC2_Init(void)
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = 1;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_601CYCLES_5;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Configure Regular Channel 
+    */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -293,6 +324,21 @@ static void MX_TIM3_Init(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+}
+
+/** 
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void) 
+{
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
 }
 
@@ -339,31 +385,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-#ifdef HAL
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	//Power = 1 - Power;
-	switch(GPIO_Pin)
-	{
-	case GPIO_PIN_8:
-		HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 1);
-		break;
-
-	case GPIO_PIN_9:
-		HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 1);
-		break;
-
-	case GPIO_PIN_10:
-		HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 1);
-		break;
-
-	default:
-		break;
-	}
-}
-
-#endif
 
 /* USER CODE END 4 */
 
