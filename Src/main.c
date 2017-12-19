@@ -43,6 +43,11 @@
 
 #define HAL
 
+#define LED_RED 	TIM_CHANNEL_1
+#define LED_GREEN 	TIM_CHANNEL_2
+#define LED_BLUE 	TIM_CHANNEL_4
+
+#define FADE_DELAY	25
 
 /* USER CODE END Includes */
 
@@ -55,9 +60,17 @@ TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 uint8_t Power = 0;
+
 uint32_t adc[2];
+
 uint32_t color;
 uint32_t luminosity;
+
+uint64_t PwmDutyRed;
+uint64_t PwmDutyGreen;
+uint64_t PwmDutyBlue;
+
+uint32_t test;			// a test variable
 
 /* USER CODE END PV */
 
@@ -67,6 +80,9 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_TIM3_Init(void);
+                                    
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -76,6 +92,99 @@ static void MX_TIM3_Init(void);
 /* USER CODE BEGIN 0 */
 
 #ifdef HAL
+
+
+
+
+/**
+  * @brief  Sets Duty to TIM PWM
+  * @param  PulseLength 0 - 2^16-1
+  * @param  Channel TIM Channels to be configured
+  *          This parameter can be one of the following values:
+  *            @arg TIM_CHANNEL_1: TIM Channel 1 selected
+  *            @arg TIM_CHANNEL_2: TIM Channel 2 selected
+  *            @arg TIM_CHANNEL_3: TIM Channel 3 selected
+  * @retval none
+  */
+void setPwmDuty(uint32_t PulseLength, uint32_t Channel)
+{
+	HAL_TIM_PWM_Stop(&htim3,Channel);
+
+	TIM_OC_InitTypeDef sConfigOC;
+
+	sConfigOC.OCMode = TIM_OCMODE_PWM1;
+	sConfigOC.Pulse = PulseLength;
+	sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+	sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+	if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, Channel) != HAL_OK)
+	{
+	  _Error_Handler(__FILE__, __LINE__);
+	}
+	HAL_TIM_PWM_Start(&htim3,Channel);
+}
+
+
+/**
+  * @brief  Fade-in of a choosen LED color with a time delay
+  * @param  TimeDiv		devides the additional PWM pulse to extend the fade-in time (1 - 1000)
+  * @param  Led 		chose a led color to select
+  *          This parameter can be one of the following values:
+  *            @arg LED_RED:   Red   LEDs are selected
+  *            @arg LED_GREEN: Green LEDs are selected
+  *            @arg LED_BLUE:  Blue  LEDs are selected
+  * @retval none
+  */
+void fadeInLed(uint16_t TimeDiv, uint32_t Led)
+{
+	uint32_t Channal;
+	uint64_t PwmDuty = TimeDiv;
+
+	if(TimeDiv > 1000)
+		TimeDiv = 1000;
+
+	Channal = Led;
+
+	while(PwmDuty/TimeDiv < 65535)
+	{
+		setPwmDuty(PwmDuty/TimeDiv,Channal);
+		PwmDuty = (PwmDuty + PwmDuty/TimeDiv);
+		HAL_Delay(25);
+		}
+
+}
+
+
+/**
+  * @brief  Fade-out of a choosen LED color with a time delay
+  * @param  TimeDiv		devides the additional PWM pulse to extend the fade-in time (1 - 1000)
+  * @param  Led 		chose a led color to select
+  *          This parameter can be one of the following values:
+  *            @arg LED_RED:   Red   LEDs are selected
+  *            @arg LED_GREEN: Green LEDs are selected
+  *            @arg LED_BLUE:  Blue  LEDs are selected
+  * @retval none
+  */
+void fadeOutLed(uint16_t TimeDiv, uint32_t Led)
+{
+	uint32_t Channal;
+	uint64_t PwmDuty = 65535*TimeDiv;
+
+	if(TimeDiv > 1000)
+		TimeDiv = 1000;
+
+	Channal = Led;
+
+	while(PwmDuty/TimeDiv > TimeDiv)
+	{
+		setPwmDuty(PwmDuty/TimeDiv,Channal);
+		PwmDuty = (PwmDuty - PwmDuty/TimeDiv);
+		HAL_Delay(25);
+	}
+	setPwmDuty(0,Channal);
+
+
+}
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -144,6 +253,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc2, adc, 2);
 
+//  HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -159,15 +270,25 @@ int main(void)
 	  // light effect
 	  if(Power == 1)
 	  {
-		  HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 1);
-		  HAL_Delay(250);
-		  HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 0);
-		  HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 1);
-		  HAL_Delay(250);
-		  HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 0);
-		  HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 1);
-		  HAL_Delay(250);
-		  HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 0);
+
+		  fadeOutLed(FADE_DELAY,LED_GREEN);
+		  fadeInLed(FADE_DELAY,LED_RED);
+		  fadeOutLed(FADE_DELAY,LED_BLUE);
+		  fadeInLed(FADE_DELAY,LED_GREEN);
+		  fadeOutLed(FADE_DELAY,LED_RED);
+		  fadeInLed(FADE_DELAY,LED_BLUE);
+
+	  }
+	  else
+	  {
+
+		  fadeInLed(10,LED_RED);
+		  fadeOutLed(10,LED_RED);
+		  fadeInLed(10,LED_GREEN);
+		  fadeOutLed(10,LED_GREEN);
+		  fadeInLed(10,LED_BLUE);
+		  fadeOutLed(10,LED_BLUE);
+
 	  }
 
 
@@ -300,13 +421,14 @@ static void MX_TIM3_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_OC_InitTypeDef sConfigOC;
 
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 0;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 0;
+  htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -318,12 +440,38 @@ static void MX_TIM3_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -358,21 +506,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, PwmRed_Tim3Ch1_Pin|PwmGreen_Tim3Ch2_Pin|PwmBlue_Tim3Ch4_Pin, GPIO_PIN_RESET);
-
   /*Configure GPIO pins : UserButton1_Exti8_Pin UserButton2_Exti9_Pin UserButton3_Exti10_Pin */
   GPIO_InitStruct.Pin = UserButton1_Exti8_Pin|UserButton2_Exti9_Pin|UserButton3_Exti10_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PwmRed_Tim3Ch1_Pin PwmGreen_Tim3Ch2_Pin PwmBlue_Tim3Ch4_Pin */
-  GPIO_InitStruct.Pin = PwmRed_Tim3Ch1_Pin|PwmGreen_Tim3Ch2_Pin|PwmBlue_Tim3Ch4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);

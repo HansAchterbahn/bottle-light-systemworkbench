@@ -31,7 +31,7 @@ endif
 all: bottle-light.elf
 
 # Tool invocations
-bottle-light.elf: $(OBJS) $(USER_OBJS) ../STM32F334K6Tx_FLASH.ld
+bottle-light.elf: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU GCC Linker'
 	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -specs=nosys.specs -specs=nano.specs -T"../STM32F334K6Tx_FLASH.ld" -Wl,-Map=output.map -Wl,--gc-sections -lm -o "bottle-light.elf" @"objects.list" $(USER_OBJS) $(LIBS)
