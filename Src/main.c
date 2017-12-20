@@ -40,7 +40,6 @@
 #include "stm32f3xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-
 #define HAL
 
 #define LED_RED 	TIM_CHANNEL_1
@@ -70,6 +69,8 @@ uint64_t PwmDutyRed;
 uint64_t PwmDutyGreen;
 uint64_t PwmDutyBlue;
 
+uint8_t Programm = 0;		// switch for Lightprogramms
+
 uint32_t test;			// a test variable
 
 /* USER CODE END PV */
@@ -98,7 +99,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /**
   * @brief  Sets Duty to TIM PWM
-  * @param  PulseLength 0 - 2^16-1
+  * @param  PulseLength 0 - 65535 (2^16)
   * @param  Channel TIM Channels to be configured
   *          This parameter can be one of the following values:
   *            @arg TIM_CHANNEL_1: TIM Channel 1 selected
@@ -185,6 +186,49 @@ void fadeOutLed(uint16_t TimeDiv, uint32_t Led)
 
 }
 
+/**
+  * @brief  Fades the LEDs from red to violett
+  * @retval none
+  */
+void circleColor()
+{
+	int32_t n;		// counter variable
+
+	setPwmDuty(65535, LED_RED);
+	setPwmDuty(0, LED_GREEN);
+	setPwmDuty(0, LED_BLUE);
+
+	n = 0;
+	while(n<=65535)
+	{
+		setPwmDuty(65535-n, LED_RED);
+		setPwmDuty(n, LED_GREEN);
+		n++;
+	}
+
+	n = 0;
+	while(n<=65535)
+	{
+		setPwmDuty(65535-n, LED_GREEN);
+		setPwmDuty(n, LED_BLUE);
+		n++;
+	}
+
+	n = 0;
+	while(n<=65535)
+	{
+		setPwmDuty(65535-n, LED_BLUE);
+		setPwmDuty(n, LED_RED);
+		n++;
+	}
+
+}
+
+void pulseRandomColor()
+{
+
+}
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -192,15 +236,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	switch(GPIO_Pin)
 	{
 	case GPIO_PIN_8:
-		HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 1);
+		// HAL_GPIO_WritePin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin, 1);
+		Programm = 1;
 		break;
 
 	case GPIO_PIN_9:
-		HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 1);
+		// HAL_GPIO_WritePin(PwmGreen_Tim3Ch2_GPIO_Port, PwmGreen_Tim3Ch2_Pin, 1);
+		Programm = 2;
 		break;
 
 	case GPIO_PIN_10:
-		HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 1);
+		// HAL_GPIO_WritePin(PwmBlue_Tim3Ch4_GPIO_Port,PwmBlue_Tim3Ch4_Pin, 1);
+		Programm = 3;
 		break;
 
 	default:
@@ -266,28 +313,48 @@ int main(void)
   /* USER CODE BEGIN 3 */
 
 
-#ifdef HAL
+
+		switch(Programm)
+		{
+
+		// fade colors with quadratic function
+		case 1:		setPwmDuty(65535,LED_RED);
+					setPwmDuty(65535,LED_GREEN);
+					setPwmDuty(65535,LED_BLUE);
+					break;
+
+		// pulsing red, green, blue
+		case 2:		setPwmDuty(0,LED_RED);
+					setPwmDuty(0,LED_GREEN);
+					setPwmDuty(0,LED_BLUE);
+
+					fadeInLed(10,LED_RED);
+					fadeOutLed(10,LED_RED);
+					fadeInLed(10,LED_GREEN);
+					fadeOutLed(10,LED_GREEN);
+					fadeInLed(10,LED_BLUE);
+					fadeOutLed(10,LED_BLUE);
+					break;
+
+		// circle color with linear function
+		case 3:		circleColor();
+					break;
+
+		default:
+					break;
+		}
+
 	  // light effect
 	  if(Power == 1)
 	  {
 
-		  fadeOutLed(FADE_DELAY,LED_GREEN);
-		  fadeInLed(FADE_DELAY,LED_RED);
-		  fadeOutLed(FADE_DELAY,LED_BLUE);
-		  fadeInLed(FADE_DELAY,LED_GREEN);
-		  fadeOutLed(FADE_DELAY,LED_RED);
-		  fadeInLed(FADE_DELAY,LED_BLUE);
+
 
 	  }
 	  else
 	  {
 
-		  fadeInLed(10,LED_RED);
-		  fadeOutLed(10,LED_RED);
-		  fadeInLed(10,LED_GREEN);
-		  fadeOutLed(10,LED_GREEN);
-		  fadeInLed(10,LED_BLUE);
-		  fadeOutLed(10,LED_BLUE);
+
 
 	  }
 
@@ -303,15 +370,7 @@ int main(void)
 	  {
 		  Power = 1;
 	  }
-#endif
 
-#ifdef LL
-
-	  LL_GPIO_SetOutputPin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin);
-	  LL_mDelay(250);
-	  LL_GPIO_ResetOutputPin(PwmRed_Tim3Ch1_GPIO_Port,PwmRed_Tim3Ch1_Pin);
-	  LL_mDelay(250);
-#endif
 
 
   }
