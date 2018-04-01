@@ -1,7 +1,8 @@
 /**
   ******************************************************************************
-  * File Name          : main.h
-  * Description        : This file contains the common defines of the application
+  * File Name          : gpio.c
+  * Description        : This file provides code for the configuration
+  *                      of all used GPIO pins.
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
@@ -35,52 +36,61 @@
   *
   ******************************************************************************
   */
-/* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
-  /* Includes ------------------------------------------------------------------*/
 
-/* USER CODE BEGIN Includes */
+/* Includes ------------------------------------------------------------------*/
+#include "gpio.h"
+/* USER CODE BEGIN 0 */
 
-/* USER CODE END Includes */
+/* USER CODE END 0 */
 
-/* Private define ------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* Configure GPIO                                                             */
+/*----------------------------------------------------------------------------*/
+/* USER CODE BEGIN 1 */
 
-#define PotiColor_Adc2In1_Pin GPIO_PIN_4
-#define PotiColor_Adc2In1_GPIO_Port GPIOA
-#define PotiLuminosity_Adc2In2_Pin GPIO_PIN_5
-#define PotiLuminosity_Adc2In2_GPIO_Port GPIOA
-#define UserButton1_Exti8_Pin GPIO_PIN_8
-#define UserButton1_Exti8_GPIO_Port GPIOA
-#define UserButton1_Exti8_EXTI_IRQn EXTI9_5_IRQn
-#define UserButton2_Exti9_Pin GPIO_PIN_9
-#define UserButton2_Exti9_GPIO_Port GPIOA
-#define UserButton2_Exti9_EXTI_IRQn EXTI9_5_IRQn
-#define UserButton3_Exti10_Pin GPIO_PIN_10
-#define UserButton3_Exti10_GPIO_Port GPIOA
-#define UserButton3_Exti10_EXTI_IRQn EXTI15_10_IRQn
-#define PwmRed_Tim3Ch1_Pin GPIO_PIN_4
-#define PwmRed_Tim3Ch1_GPIO_Port GPIOB
-#define PwmGreen_Tim3Ch2_Pin GPIO_PIN_5
-#define PwmGreen_Tim3Ch2_GPIO_Port GPIOB
-#define PwmBlue_Tim3Ch4_Pin GPIO_PIN_7
-#define PwmBlue_Tim3Ch4_GPIO_Port GPIOB
+/* USER CODE END 1 */
 
-/* USER CODE BEGIN Private defines */
+/** Configure pins as 
+        * Analog 
+        * Input 
+        * Output
+        * EVENT_OUT
+        * EXTI
+*/
+void MX_GPIO_Init(void)
+{
 
-/* USER CODE END Private defines */
+  GPIO_InitTypeDef GPIO_InitStruct;
 
-void _Error_Handler(char *, int);
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
-#define Error_Handler() _Error_Handler(__FILE__, __LINE__)
+  /*Configure GPIO pins : PAPin PAPin PAPin */
+  GPIO_InitStruct.Pin = UserButton1_Exti8_Pin|UserButton2_Exti9_Pin|UserButton3_Exti10_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+}
+
+/* USER CODE BEGIN 2 */
+
+/* USER CODE END 2 */
 
 /**
   * @}
-  */ 
+  */
 
 /**
   * @}
-*/ 
+  */
 
-#endif /* __MAIN_H */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

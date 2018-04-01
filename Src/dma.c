@@ -1,7 +1,8 @@
 /**
   ******************************************************************************
-  * File Name          : main.h
-  * Description        : This file contains the common defines of the application
+  * File Name          : dma.c
+  * Description        : This file provides code for the configuration
+  *                      of all the requested memory to memory DMA transfers.
   ******************************************************************************
   ** This notice applies to any and all portions of this file
   * that are not between comment pairs USER CODE BEGIN and
@@ -35,52 +36,46 @@
   *
   ******************************************************************************
   */
-/* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
-  /* Includes ------------------------------------------------------------------*/
+/* Includes ------------------------------------------------------------------*/
+#include "dma.h"
 
-/* USER CODE BEGIN Includes */
+/* USER CODE BEGIN 0 */
 
-/* USER CODE END Includes */
+/* USER CODE END 0 */
 
-/* Private define ------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+/* Configure DMA                                                              */
+/*----------------------------------------------------------------------------*/
 
-#define PotiColor_Adc2In1_Pin GPIO_PIN_4
-#define PotiColor_Adc2In1_GPIO_Port GPIOA
-#define PotiLuminosity_Adc2In2_Pin GPIO_PIN_5
-#define PotiLuminosity_Adc2In2_GPIO_Port GPIOA
-#define UserButton1_Exti8_Pin GPIO_PIN_8
-#define UserButton1_Exti8_GPIO_Port GPIOA
-#define UserButton1_Exti8_EXTI_IRQn EXTI9_5_IRQn
-#define UserButton2_Exti9_Pin GPIO_PIN_9
-#define UserButton2_Exti9_GPIO_Port GPIOA
-#define UserButton2_Exti9_EXTI_IRQn EXTI9_5_IRQn
-#define UserButton3_Exti10_Pin GPIO_PIN_10
-#define UserButton3_Exti10_GPIO_Port GPIOA
-#define UserButton3_Exti10_EXTI_IRQn EXTI15_10_IRQn
-#define PwmRed_Tim3Ch1_Pin GPIO_PIN_4
-#define PwmRed_Tim3Ch1_GPIO_Port GPIOB
-#define PwmGreen_Tim3Ch2_Pin GPIO_PIN_5
-#define PwmGreen_Tim3Ch2_GPIO_Port GPIOB
-#define PwmBlue_Tim3Ch4_Pin GPIO_PIN_7
-#define PwmBlue_Tim3Ch4_GPIO_Port GPIOB
+/* USER CODE BEGIN 1 */
 
-/* USER CODE BEGIN Private defines */
+/* USER CODE END 1 */
 
-/* USER CODE END Private defines */
+/** 
+  * Enable DMA controller clock
+  */
+void MX_DMA_Init(void) 
+{
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
-void _Error_Handler(char *, int);
+  /* DMA interrupt init */
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
-#define Error_Handler() _Error_Handler(__FILE__, __LINE__)
+}
+
+/* USER CODE BEGIN 2 */
+
+/* USER CODE END 2 */
 
 /**
   * @}
-  */ 
+  */
 
 /**
   * @}
-*/ 
+  */
 
-#endif /* __MAIN_H */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
