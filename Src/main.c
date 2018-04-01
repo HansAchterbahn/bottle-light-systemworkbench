@@ -50,9 +50,24 @@
 #define LED_GREEN 	TIM_CHANNEL_2
 #define LED_BLUE 	TIM_CHANNEL_4
 
-#define FADE_DELAY	25
+/* Boarders who define on witch point of color adc value a color maximum is reached */
+#define COLOR_MAX_VALUE		20160
+#define BOARDER_GREEN		20160
+#define BOARDER_BLUE		40320
+#define BOARDER_RED			60480 	// and 0
+#define BOARDER_WHITE		63000
 
-#define ADC_ARRAY_LENGTH 1000
+#define COLOR_TIM3_SCALING_FACTOR			3		// factor to scale form 20160 color value to 16 bit tim3 value
+#define COLOR_TIM3_SCALING_FACTOR_OFFSET	5055	// existing offset, when scaling from 20160 color value to 16 bit tim3 value
+
+#define ADC_TIM3_SCALING_FACTOR				16		// factor to scale from 12 bit adc to 16 bit tim3
+#define ADC_TIM3_SCALING_FACTOR_OFFSET		15		// existing offset, when scaling 12 bit adc to 16 bit tim3
+
+#define FADE_DELAY			25
+
+#define ADC_ARRAY_LENGTH 	1000
+
+#define TIM3_MAX_VALUE		65535				// maximum value for tim3 (2^16-1)
 
 /* USER CODE END Includes */
 
@@ -76,7 +91,8 @@ uint64_t PwmDutyRed;
 uint64_t PwmDutyGreen;
 uint64_t PwmDutyBlue;
 
-uint8_t Programm = 0;		// switch for Lightprogramms
+uint8_t Programm = 0;		// switch for light programs
+uint8_t BreakProgram = 0;  // flag can be set to break the actual program (0…do nothing; 1…break program)
 
 uint32_t test;			// a test variable
 /* USER CODE END PV */
@@ -144,11 +160,11 @@ void fadeInLed(uint16_t TimeDiv, uint32_t Led)
 
 	Channal = Led;
 
-	while(PwmDuty/TimeDiv < 65535)
+	while(PwmDuty/TimeDiv < TIM3_MAX_VALUE)
 	{
 		setPwmDuty(PwmDuty/TimeDiv,Channal);
 		PwmDuty = (PwmDuty + PwmDuty/TimeDiv);
-		HAL_Delay(25);
+		HAL_Delay(FADE_DELAY);
 		}
 
 }
@@ -167,7 +183,7 @@ void fadeInLed(uint16_t TimeDiv, uint32_t Led)
 void fadeOutLed(uint16_t TimeDiv, uint32_t Led)
 {
 	uint32_t Channal;
-	uint64_t PwmDuty = 65535*TimeDiv;
+	uint64_t PwmDuty = TIM3_MAX_VALUE*TimeDiv;
 
 	if(TimeDiv > 1000)
 		TimeDiv = 1000;
@@ -178,7 +194,7 @@ void fadeOutLed(uint16_t TimeDiv, uint32_t Led)
 	{
 		setPwmDuty(PwmDuty/TimeDiv,Channal);
 		PwmDuty = (PwmDuty - PwmDuty/TimeDiv);
-		HAL_Delay(25);
+		HAL_Delay(FADE_DELAY);
 	}
 	setPwmDuty(0,Channal);
 
@@ -193,35 +209,98 @@ void circleColor()
 {
 	int32_t n;		// counter variable
 
-	setPwmDuty(65535, LED_RED);
+	setPwmDuty(TIM3_MAX_VALUE, LED_RED);
 	setPwmDuty(0, LED_GREEN);
 	setPwmDuty(0, LED_BLUE);
 
 	n = 0;
-	while(n<=65535)
+	while(n<=TIM3_MAX_VALUE)
 	{
-		setPwmDuty(65535-n, LED_RED);
+		setPwmDuty(TIM3_MAX_VALUE-n, LED_RED);
 		setPwmDuty(n, LED_GREEN);
 		n++;
+		if(BreakProgram == 1)
+			break;
 	}
 
 	n = 0;
-	while(n<=65535)
+	while(n<=TIM3_MAX_VALUE)
 	{
-		setPwmDuty(65535-n, LED_GREEN);
+		setPwmDuty(TIM3_MAX_VALUE-n, LED_GREEN);
 		setPwmDuty(n, LED_BLUE);
 		n++;
+		if(BreakProgram == 1)
+			break;
 	}
 
 	n = 0;
-	while(n<=65535)
+	while(n<=TIM3_MAX_VALUE)
 	{
-		setPwmDuty(65535-n, LED_BLUE);
+		setPwmDuty(TIM3_MAX_VALUE-n, LED_BLUE);
 		setPwmDuty(n, LED_RED);
 		n++;
+		if(BreakProgram == 1)
+			break;
 	}
 
 }
+
+void pulsingRGB()
+{
+	// turn off all leds
+	setPwmDuty(0,LED_RED);
+	setPwmDuty(0,LED_GREEN);
+	setPwmDuty(0,LED_BLUE);
+
+	// pulsing red, green, blue
+	fadeInLed(10,LED_RED);
+	fadeOutLed(10,LED_RED);
+	fadeInLed(10,LED_GREEN);
+	fadeOutLed(10,LED_GREEN);
+	fadeInLed(10,LED_BLUE);
+	fadeOutLed(10,LED_BLUE);
+}
+
+
+void chooseRainbowColor(uint32_t color)
+{
+	/* area from red to green */
+	if (color >= 0 && color <=BOARDER_GREEN)
+	{
+		setPwmDuty((BOARDER_GREEN-color)*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_RED);
+		setPwmDuty(color*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_GREEN);
+		setPwmDuty(0,LED_BLUE);
+	}
+	/* area from green to blue */
+	if (color > BOARDER_GREEN && color <= BOARDER_BLUE)
+	{
+		setPwmDuty(0,LED_RED);
+		setPwmDuty((BOARDER_GREEN-(color-BOARDER_GREEN))*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_GREEN);
+		setPwmDuty((color-BOARDER_GREEN)*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_BLUE);
+	}
+	/* area from blue to red */
+	if (color > BOARDER_BLUE && color <= BOARDER_RED)
+	{
+		setPwmDuty((color-BOARDER_BLUE)*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_RED);
+		setPwmDuty(0,LED_GREEN);
+		setPwmDuty((BOARDER_GREEN-(color-BOARDER_BLUE))*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_BLUE);
+	}
+	/* small passage for red only (smooth transition to white */
+	if (color > BOARDER_RED && color <= BOARDER_WHITE)
+	{
+		setPwmDuty(COLOR_MAX_VALUE*COLOR_TIM3_SCALING_FACTOR*luminosity/TIM3_MAX_VALUE,LED_RED);
+		setPwmDuty(0,LED_GREEN);
+		setPwmDuty(0,LED_BLUE);
+	}
+	/* small passage for white at the end of the scale */
+	if (color > BOARDER_WHITE && color <= TIM3_MAX_VALUE)
+	{
+		setPwmDuty(luminosity,LED_RED);
+		setPwmDuty(luminosity,LED_GREEN);
+		setPwmDuty(luminosity,LED_BLUE);
+	}
+}
+
 
 void pulseRandomColor()
 {
@@ -229,8 +308,38 @@ void pulseRandomColor()
 }
 
 
+/**
+  * @brief  This function provides accurate delay (in milliseconds) based
+  *         on variable incremented.
+  * @note   In the default implementation , SysTick timer is the source of time base.
+  *         It is used to generate interrupts at regular time intervals where uwTick
+  *         is incremented.
+  *         The origin function is overwritten with this implementation.
+  * @param  Delay specifies the delay time length, in milliseconds.
+  * @retval None
+  */
+void HAL_Delay(__IO uint32_t Delay)
+{
+  uint32_t tickstart = HAL_GetTick();
+  uint32_t wait = Delay;
+
+  /* Add a period to guarantee minimum wait */
+  if (wait < HAL_MAX_DELAY)
+  {
+     wait++;
+  }
+
+  while((HAL_GetTick() - tickstart) < wait)
+  {
+	  if(BreakProgram == 1)
+		  break;
+  }
+}
+
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+	BreakProgram = 1;		// brake actual program
 	//Power = 1 - Power;
 	switch(GPIO_Pin)
 	{
@@ -256,8 +365,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
-	colorArray[AdcArrayCounter] = adc[0];
-	luminosityArray[AdcArrayCounter]=adc[1]*16+15;			// read adc value (10 bit) and expand to pwm value (32 bit)
+	colorArray[AdcArrayCounter] = adc[0]*ADC_TIM3_SCALING_FACTOR;
+	luminosityArray[AdcArrayCounter]=adc[1]*ADC_TIM3_SCALING_FACTOR+ADC_TIM3_SCALING_FACTOR_OFFSET;			// read adc value (10 bit) and expand to pwm value (32 bit)
 
 
 	if(AdcArrayCounter < ADC_ARRAY_LENGTH-1)
@@ -343,31 +452,24 @@ int main(void)
 
 
 		/* choose programm */
+		BreakProgram = 0;				// reset BreakProgram flag
 		switch(Programm)
 		{
 
-		// white light dimmable with luminosity poti
-		case 1:		setPwmDuty(luminosity,LED_RED);
-					setPwmDuty(luminosity,LED_GREEN);
-					setPwmDuty(luminosity,LED_BLUE);
+		// light dimmable with luminosity potentiometer and choosable color with color potentiometer (at maximum value color is white)
+		case 1:		chooseRainbowColor(color);
 					break;
 
 		// pulsing red, green, blue
-		case 2:		setPwmDuty(0,LED_RED);
-					setPwmDuty(0,LED_GREEN);
-					setPwmDuty(0,LED_BLUE);
-
-					fadeInLed(10,LED_RED);
-					fadeOutLed(10,LED_RED);
-					fadeInLed(10,LED_GREEN);
-					fadeOutLed(10,LED_GREEN);
-					fadeInLed(10,LED_BLUE);
-					fadeOutLed(10,LED_BLUE);
+		case 2:		pulsingRGB();
 					break;
 
 		// circle color with linear function
 		case 3:		circleColor();
 					break;
+
+
+
 
 		default:
 					break;
